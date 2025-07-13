@@ -50,8 +50,11 @@ const preferenceUpdateSchema = Joi.object({
 
 // Middleware to validate request payloads against the defined schemas
 export const validatePayload = (schema) => (req, res, next) => {
-    const { error } = schema.validate(req.body);
+    const dataToValidate = req.body === undefined || req.body === null ? {} : req.body;
+
+    const { error } = schema.validate(dataToValidate);
     if (error) {
+        // Return 400 Bad Request with the validation error message
         return res.status(400).json({ message: error.details[0].message });
     }
     next();

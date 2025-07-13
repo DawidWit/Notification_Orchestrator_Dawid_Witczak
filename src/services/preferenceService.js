@@ -1,6 +1,9 @@
 import { getPreferences, setPreferences } from '../models/preferenceModel.js';
 import deepmerge from 'deepmerge';
 
+// Custom merge function to handle arrays in deepmerge
+const overwriteMerge = (destinationArray, sourceArray, options) => sourceArray;
+
 // This function retrieves the preferences for a given userId
 export const getUserPreferences = async (userId) => {
     return await getPreferences(userId);
@@ -27,8 +30,9 @@ export const updateSpecificUserPreferences = async (userId, payload) => {
     const currentDndWindows = existingItem.dndWindows || [];
 
     // Deep merge for 'preferences' object: combines nested properties.
-    const mergedPreferences = payload.preferences ? deepmerge(currentPreferences, payload.preferences) : currentPreferences;
-    const mergedDndWindows = payload.dndWindows !== undefined ? payload.dndWindows : currentDndWindows;
+    const mergedPreferences = payload.preferences
+        ? deepmerge(currentPreferences, payload.preferences, { arrayMerge: overwriteMerge })
+        : currentPreferences; const mergedDndWindows = payload.dndWindows !== undefined ? payload.dndWindows : currentDndWindows;
 
     // Construct the full item to save.
     const fullUpdatedItem = {

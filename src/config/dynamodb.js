@@ -6,8 +6,8 @@ dotenv.config();
 
 // Create a DynamoDB client instance
 const ddbClient = new DynamoDBClient({
-    region: process.env.AWS_REGION || "localhost",
-    endpoint: process.env.DYNAMODB_ENDPOINT || "http://localhost:8000",
+    region: process.env.AWS_REGION || 'us-east-1',
+    endpoint: process.env.DYNAMODB_ENDPOINT || 'http://localhost:8000',
     credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID || "dummy",
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "dummy",

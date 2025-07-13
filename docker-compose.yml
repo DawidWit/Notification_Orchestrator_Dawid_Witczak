@@ -1,0 +1,28 @@
+version: '3.8' # Use version 3.8 of Docker Compose file format
+services:
+  # Service for Node.js application
+  app:
+    build: . # Build the Dockerfile in the current directory
+    image: notification-orchestrator-app # Name the image for easy reference
+    container_name: notification-orchestrator-app
+    ports:
+      - "3000:3000" # Map host port 3000 to container port 3000
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - dynamodb # Ensure DynamoDB Local is started before the app
+    environment:
+      - DYNAMODB_ENDPOINT=http://dynamodb:8000
+      - NODE_ENV=development
+    command: npm run dev
+
+  # Service for DynamoDB Local
+  dynamodb:
+    image: amazon/dynamodb-local # Use the official DynamoDB Local image
+    container_name: dynamodb-local
+    ports:
+      - "8000:8000" # Map host port 8000 to container port 8000
+    volumes:
+      - ./dynamodb_data:/home/dynamodblocal/data
+    command: [ "-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data" ]

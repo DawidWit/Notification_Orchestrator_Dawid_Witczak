@@ -3,9 +3,9 @@ import { getUserPreferences } from './preferenceService.js';
 // This function checks if the event timestamp falls within any Do Not Disturb (DND) windows
 const isDuringDnd = (timestamp, dndWindows) => {
     const eventDate = new Date(timestamp);
-    const eventDay = eventDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-    const eventHours = eventDate.getHours();
-    const eventMinutes = eventDate.getMinutes();
+    const eventDay = eventDate.getUTCDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const eventHours = eventDate.getUTCHours();
+    const eventMinutes = eventDate.getUTCMinutes();
     const eventTimeInMinutes = eventHours * 60 + eventMinutes;
 
     for (const dnd of dndWindows) {
