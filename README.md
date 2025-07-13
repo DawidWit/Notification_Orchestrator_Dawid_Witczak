@@ -171,60 +171,75 @@ Each item in the `NotificationPreferences` table will have the following structu
 
 ## Setup and Installation
 
+This project leverages Docker and Docker Compose for a streamlined local development environment, especially for running DynamoDB Local and the Node.js application in containers.
+
 1.  **Clone the repository:**
     ```bash
     git clone [https://github.com/DawidWit/Notification_Orchestrator_Dawid_Witczak.git](https://github.com/DawidWit/Notification_Orchestrator_Dawid_Witczak.git)
     cd Notification_Orchestrator_Dawid_Witczak
     ```
 
-2.  **Install dependencies:**
+2.  **Install Node.js dependencies:**
     ```bash
     npm install
     ```
-    *(Note: This project uses `@aws-sdk/client-dynamodb` and `@aws-sdk/lib-dynamodb` for DynamoDB interactions, `deepmerge` for object merging, `joi` for validation, and `express` for the web server.)*
 
-3.  **Set up DynamoDB Local (recommended for development and testing):**
-    You'll need a running instance of DynamoDB Local. An official Docker image is available:
+3.  **Docker Environment Setup:**
+    Ensure you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) (which includes Docker Compose) installed on your system.
+
+4.  **Create DynamoDB Local Data Directory:**
+    A local directory is needed to persist DynamoDB Local data across container restarts.
     ```bash
-    docker run -p 8000:8000 amazon/dynamodb-local -jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data
-    ```
-    This command starts DynamoDB Local on port `8000`. The `-sharedDb` option uses a single database file, and `-dbPath` specifies a durable storage path.
-
-4.  **Create the DynamoDB Table:**
-    The application expects a table named `NotificationPreferences` with `userId` as its Partition Key. You can create it using the AWS CLI:
-    ```bash
-    aws dynamodb create-table \
-        --table-name NotificationPreferences \
-        --attribute-definitions \
-            AttributeName=userId,AttributeType=S \
-        --key-schema \
-            AttributeName=userId,KeyType=HASH \
-        --billing-mode PAY_PER_REQUEST \
-        --endpoint-url http://localhost:8000 # Use this if running DynamoDB Local
+    mkdir dynamodb_data
     ```
 
-5.  **Environment Variables:**
-    Create a `.env` file in the root directory based on `.env.example`:
-    ```
-    PORT=3000
-    AWS_REGION=eu-central-1 # Or your preferred AWS region
-    AWS_ACCESS_KEY_ID=test  # For DynamoDB Local
-    AWS_SECRET_ACCESS_KEY=test # For DynamoDB Local
-    USE_DYNAMODB_LOCAL=true # Set to 'true' to ensure local endpoint is used
-    ```
-    For production deployment, ensure `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are configured with proper AWS credentials or IAM roles, and `USE_DYNAMODB_LOCAL` is omitted or set to `false`.
+5.  **Configure AWS CLI (for local table creation):**
+    The AWS Command Line Interface (CLI) is used to create the DynamoDB table. Even for DynamoDB Local, it requires dummy AWS credentials.
+    * Configure dummy credentials by running `aws configure` and providing any placeholder values for `AWS Access Key ID`, `AWS Secret Access Key`, and a `Default region name` (e.g., `us-east-1`).
 
 ## Running the Application
 
-To start the server:
+This section guides you through starting your Dockerized application environment.
 
-```bash
-npm start
-```
+1.  **Start the Dockerized Environment:**
+    From your project's root directory, execute the following command to build your Node.js application's Docker image and start both the application and the DynamoDB Local services:
+    ```bash
+    docker-compose up --build
+    ```
+    This command will build your Node.js application's Docker image and start both the application and the DynamoDB Local services. The `app` service will be accessible on `http://localhost:3000` and `dynamodb-local` on `http://localhost:8000`.
 
-The application will typically run on http://localhost:3000 (or the port specified in your .env file).
+2.  **Create the DynamoDB Table:**
+    Once the `dynamodb-local` service is running (which can take a few moments after `docker-compose up`), you need to create the `NotificationPreferences` table. Open a **new terminal window** and run the following AWS CLI command:
+    ```bash
+    aws dynamodb create-table \
+        --table-name NotificationPreferences \
+        --attribute-definitions AttributeName=userId,AttributeType=S \
+        --key-schema AttributeName=userId,KeyType=HASH \
+        --billing-mode PAY_PER_REQUEST \
+        --endpoint-url http://localhost:8000
+    ```
+    **Note for PowerShell users:** If you're using PowerShell, replace `\` (backslash) with `` ` `` (backtick) for line continuation, or simply run the entire command on a single line.
+
+3.  **Restart Application Service (if necessary):**
+    After creating the table, it's a good practice to restart your application service to ensure it connects to the newly available table.
+    If `docker-compose up` is still running in your first terminal, run this in the new terminal:
+    ```bash
+    docker-compose restart app
+    ```
+    If you stopped the Docker Compose services after Step 1, you can simply run `docker-compose up --build` again.
+
+4.  **Access and Test the Application:**
+    Your application should now be fully operational and accessible at `http://localhost:3000`.
+    You can test the event ingestion endpoint (`POST /events`) and preference management endpoints (e.g., `PUT /preferences/:userId`) using `curl` or a tool like Postman.
+
+5.  **Stop the Services:**
+    To stop all running services and remove their containers, press `Ctrl+C` in the terminal where `docker-compose up` is running, then execute:
+    ```bash
+    docker-compose down
+    ```
 
 ## Running Tests
+
 Integration tests are provided to verify the API endpoints.
 
 ```bash
