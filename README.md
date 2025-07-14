@@ -87,7 +87,7 @@ Each item in the `NotificationPreferences` table will have the following structu
       "eventType": "string",
       "timestamp": "ISO 8601 string (e.g., 2024-05-28T10:00:00Z)",
       "payload": {
-        // Arbitrary event-specific data
+        ...
       }
     }
     ```
