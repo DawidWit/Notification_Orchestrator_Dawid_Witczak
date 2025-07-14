@@ -75,7 +75,7 @@ export const evaluateNotificationDecision = async (event) => {
             decision: "DO_NOT_NOTIFY",
             eventId: event.eventId,
             userId: userId,
-            reason: "NO_CHANNELS_CONFIGURED", // User has no preferences set
+            reason: "NO_PREFERENCES_FOUND", // User has no preferences set
         };
     }
 
@@ -99,7 +99,7 @@ export const evaluateNotificationDecision = async (event) => {
             decision: "DO_NOT_NOTIFY",
             eventId: event.eventId,
             userId: userId,
-            reason: "USER_UNSUBSCRIBED",
+            reason: "PREFERENCES_DISABLED",
         };
     }
 

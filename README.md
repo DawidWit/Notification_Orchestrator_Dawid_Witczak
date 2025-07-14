@@ -18,168 +18,184 @@ This task was made by me for recruitment purposes for Cleeng.
 
 1.  **Event Ingestion**: Exposes an HTTP endpoint to accept incoming event payloads.
 2.  **User Preference Management**:
-    * Users can enable/disable notifications for specific event types.
-    * Users can define preferred notification channels (email, SMS, push) per event type.
-    * Users can set multiple "Do Not Disturb" windows (e.g., specific times on specific days, or full days).
-    * Provides API endpoints to set (create/overwrite), update (partially merge), and get preferences for a specific user.
+    - Users can enable/disable notifications for specific event types.
+    - Users can define preferred notification channels (email, SMS, push) per event type.
+    - Users can set multiple "Do Not Disturb" windows (e.g., specific times on specific days, or full days).
+    - Provides API endpoints to set (create/overwrite), update (partially merge), and get preferences for a specific user.
 3.  **Notification Logic**: Determines whether a notification should be processed based on DND windows and user preferences. It returns a decision (`PROCESS_NOTIFICATION` or `DO_NOT_NOTIFY`) without actually sending the notification.
 
 ## Project Structure
 
 The project follows architecture:
 
--   `config/`: Configuration file, primarily for DynamoDB client setup.
--   `controllers/`: Handles incoming HTTP requests, calls appropriate service functions, and sends responses.
--   `middleware/`: Contains middleware functions for request validation.
--   `models/`: Interacts directly with the DynamoDB database, abstracting data access logic.
--   `routes/`: Defines the API endpoints and maps them to controller functions.
--   `services/`: Contains the core business logic, orchestrating calls to models and implementing complex decision-making (DND and preference evaluation, merging updates).
--   `tests/`: Contains integration tests for the API endpoints.
--   `app.js`: The main application entry point, setting up the Express server and routing.
+- `config/`: Configuration file, primarily for DynamoDB client setup.
+- `controllers/`: Handles incoming HTTP requests, calls appropriate service functions, and sends responses.
+- `middleware/`: Contains middleware functions for request validation.
+- `models/`: Interacts directly with the DynamoDB database, abstracting data access logic.
+- `routes/`: Defines the API endpoints and maps them to controller functions.
+- `services/`: Contains the core business logic, orchestrating calls to models and implementing complex decision-making (DND and preference evaluation, merging updates).
+- `tests/`: Contains integration tests for the API endpoints.
+- `app.js`: The main application entry point, setting up the Express server and routing.
 
 ## DynamoDB Design
 
 ### Table Name
 
--   `NotificationPreferences`
+- `NotificationPreferences`
 
 ### Primary Key
 
--   **Partition Key (PK):** `userId` (String)
-    -  The primary access pattern is to retrieve, set, or update preferences for a *specific user*. Using `userId` as the partition key ensures efficient `GetItem`, `PutItem`, and `UpdateItem` operations directly on a user's preferences. It guarantees that all preferences for a given user are stored together, optimizing read and write operations for user-centric data.
+- **Partition Key (PK):** `userId` (String)
+  - The primary access pattern is to retrieve, set, or update preferences for a _specific user_. Using `userId` as the partition key ensures efficient `GetItem`, `PutItem`, and `UpdateItem` operations directly on a user's preferences. It guarantees that all preferences for a given user are stored together, optimizing read and write operations for user-centric data.
 
 ### Attributes
 
 Each item in the `NotificationPreferences` table will have the following structure:
 
--   `userId` (String): The unique identifier for the user. (Primary Key)
--   `preferences` (Map): An object where keys are `eventType` (String) and values are objects defining notification settings for that event type.
-    -   Example:
-        ```json
-        "preferences": {
-            "item_shipped": {
-                "enabled": true,
-                "channels": ["email", "sms"]
-            },
-            "security_alert": {
-                "enabled": true,
-                "channels": ["push"]
-            }
+- `userId` (String): The unique identifier for the user. (Primary Key)
+- `preferences` (Map): An object where keys are `eventType` (String) and values are objects defining notification settings for that event type.
+  - Example:
+    ```json
+    "preferences": {
+        "item_shipped": {
+            "enabled": true,
+            "channels": ["email", "sms"]
+        },
+        "security_alert": {
+            "enabled": true,
+            "channels": ["push"]
         }
-        ```
--   `dndWindows` (List): An array of objects, each representing a "Do Not Disturb" window.
-    -   Each DND window object contains:
-        -   `dayOfWeek` (String or List of Strings): The day(s) of the week (e.g., "Monday", ["Saturday", "Sunday"]).
-        -   `startTime` (String, optional): Start time in "HH:MM" format (24-hour). Required unless `isFullDay` is `true`.
-        -   `endTime` (String, optional): End time in "HH:MM" format (24-hour). Required unless `isFullDay` is `true`.
-        -   `isFullDay` (Boolean): If true, the DND window applies for the entire day. Defaults to `false`.
+    }
+    ```
+- `dndWindows` (List): An array of objects, each representing a "Do Not Disturb" window.
+  - Each DND window object contains:
+    - `dayOfWeek` (String or List of Strings): The day(s) of the week (e.g., "Monday", ["Saturday", "Sunday"]).
+    - `startTime` (String, optional): Start time in "HH:MM" format (24-hour). Required unless `isFullDay` is `true`.
+    - `endTime` (String, optional): End time in "HH:MM" format (24-hour). Required unless `isFullDay` is `true`.
+    - `isFullDay` (Boolean): If true, the DND window applies for the entire day. Defaults to `false`.
 
 ### Event Ingestion
 
--   **POST `/events`**
-    -   **Description:** Accepts an incoming event payload and determines if a notification should be processed based on user preferences and DND windows.
-    -   **Request Body (JSON):**
-        ```json
-        {
-            "eventId": "string",
-            "userId": "string",
-            "eventType": "string",
-            "timestamp": "ISO 8601 string (e.g., 2024-05-28T10:00:00Z)",
-            "payload": {
-                // Arbitrary event-specific data
-            }
-        }
-        ```
-    -   **Responses:**
-        -   `200 OK`: If the notification should be processed.
-            ```json
-            {
-                "message": "PROCESS_NOTIFICATION",
-            }
-            ```
-        -   `202 Accepted`: If the notification should *not* be processed due to DND or disabled preferences.
-            ```json
-            {
-                "message": "DO_NOT_NOTIFY",
-                "reason": "DND_ACTIVE" | "PREFERENCES_DISABLED" | "INVALID_USER_OR_EVENT_TYPE" | "NO_CHANNELS_CONFIGURED" | null
-            }
-            ```
-            DND_ACTIVE: Notification cannot be sent because the event's timestamp falls within a user's "Do Not Disturb" window.
+- **POST `/events`**
 
-            PREFERENCES_DISABLED: Notification cannot be sent because the user has disabled this eventType in their preferences.
+  - **Description:** Accepts an incoming event payload and determines if a notification should be processed based on user preferences and DND windows.
+  - **Request Body (JSON):**
+    ```json
+    {
+      "eventId": "string",
+      "userId": "string",
+      "eventType": "string",
+      "timestamp": "ISO 8601 string (e.g., 2024-05-28T10:00:00Z)",
+      "payload": {
+        // Arbitrary event-specific data
+      }
+    }
+    ```
+  - **Responses:**
 
-            INVALID_USER_OR_EVENT_TYPE: The userId or eventType provided in the event payload does not exist or is not valid in the system.
+    - `200 OK`: If the notification should _not_ be processed due to various reasons.
 
-            NO_CHANNELS_CONFIGURED: The notification is enabled for this eventType, but no notification channels (email, sms, push) are configured for it in the user's preferences.
+      ```json
+      {
+          "message": "DO_NOT_NOTIFY",
+          "reason": "DND_ACTIVE" | "PREFERENCES_DISABLED" | "NO_PREFERENCES_FOUND" | "NO_CHANNELS_CONFIGURED" | null
+          ...
+      }
+      ```
 
-        -   `400 Bad Request`: If the request payload is invalid (e.g., missing userId, eventType, or timestamp).
-        -   `500 Internal Server Error`: For server-side errors.
+      DND_ACTIVE: Notification cannot be sent because the event's timestamp falls within a user's "Do Not Disturb" window.
+
+      PREFERENCES_DISABLED: Notification cannot be sent because the user has disabled this eventType in their preferences.
+
+      NO_PREFERENCES_FOUND: Notification cannot be sent because no preferences were found for provided userId.
+
+      NO_CHANNELS_CONFIGURED: The notification is enabled for this eventType, but no notification channels (email, sms, push) are configured for it in the user's preferences.
+
+    - `202 Accepted`: If the notification should be processed.
+
+      ```json
+      {
+        "message": "PROCESS_NOTIFICATION",
+        ...
+      }
+      ```
+
+    - `400 Bad Request`: If the request payload is invalid (e.g., missing userId, eventType, or timestamp).
+    - `500 Internal Server Error`: For server-side errors.
 
 ### User Preference Management
 
--   **GET `/preferences/:userId`**
-    -   **Description:** Retrieves notification preferences for a specific user.
-    -   **Responses:**
-        -   `200 OK`: Returns the user's preferences.
-            ```json
-            {
-                "userId": "string",
-                "preferences": { /* ... preferences object ... */ },
-                "dndWindows": [ /* ... dnd windows array ... */ ]
-            }
-            ```
-        -   `404 Not Found`: If preferences for the `userId` do not exist.
-        -   `500 Internal Server Error`: For server-side errors.
+- **GET `/preferences/:userId`**
 
--   **POST `/preferences/:userId`**
-    -   **Description:** Sets (creates or completely overwrites) notification preferences for a specific user.
-    -   **Request Body (JSON):**
-        ```json
-        {
-            "preferences": {
-                "eventType1": { "enabled": boolean, "channels": ["email", "sms", "push"] },
-                "eventType2": { /* ... */ }
-            },
-            "dndWindows": [
-                { "dayOfWeek": "string" | ["string"], "startTime": "HH:MM", "endTime": "HH:MM", "isFullDay": boolean }
-            ]
-        }
-        ```
-    -   **Responses:**
-        -   `201 Created`: Returns the newly set preferences.
-        -   `400 Bad Request`: If the request payload is invalid.
-        -   `500 Internal Server Error`: For server-side errors.
+  - **Description:** Retrieves notification preferences for a specific user.
+  - **Responses:**
+    - `200 OK`: Returns the user's preferences.
+      ```json
+      {
+        "userId": "string",
+        "preferences": {
+          /* ... preferences object ... */
+        },
+        "dndWindows": [
+          /* ... dnd windows array ... */
+        ]
+      }
+      ```
+    - `404 Not Found`: If preferences for the `userId` do not exist.
+    - `500 Internal Server Error`: For server-side errors.
 
--   **PUT `/preferences/:userId`**
-    -   **Description:** Updates specific fields in a user's preferences. This endpoint performs a deep merge for the `preferences` object and replaces the `dndWindows` array if provided. At least one of `preferences` or `dndWindows` must be present in the payload.
-    -   **Request Body (JSON):**
-        ```json
-        {
-            "preferences": { // Optional: will be deep-merged with existing preferences
-                "eventTypeToUpdate": { "enabled": boolean, "channels": ["email", "sms", "push"] }
-            },
-            "dndWindows": [ // Optional: will replace the entire dndWindows array if present
-                { "dayOfWeek": "string" | ["string"], "startTime": "HH:MM", "endTime": "HH:MM", "isFullDay": boolean }
-            ]
-        }
-        ```
-    -   **Responses:**
-        -   `200 OK`: Returns the updated preferences.
-        -   `400 Bad Request`: If the request payload is invalid.
-        -   `404 Not Found`: If preferences for the `userId` do not exist.
-        -   `500 Internal Server Error`: For server-side errors.
+- **POST `/preferences/:userId`**
+
+  - **Description:** Sets (creates or completely overwrites) notification preferences for a specific user.
+  - **Request Body (JSON):**
+    ```json
+    {
+        "preferences": {
+            "eventType1": { "enabled": boolean, "channels": ["email", "sms", "push"] },
+            "eventType2": { /* ... */ }
+        },
+        "dndWindows": [
+            { "dayOfWeek": "string" | ["string"], "startTime": "HH:MM", "endTime": "HH:MM", "isFullDay": boolean }
+        ]
+    }
+    ```
+  - **Responses:**
+    - `201 Created`: Returns the newly set preferences.
+    - `400 Bad Request`: If the request payload is invalid.
+    - `500 Internal Server Error`: For server-side errors.
+
+- **PUT `/preferences/:userId`**
+  - **Description:** Updates specific fields in a user's preferences. This endpoint performs a deep merge for the `preferences` object and replaces the `dndWindows` array if provided. At least one of `preferences` or `dndWindows` must be present in the payload.
+  - **Request Body (JSON):**
+    ```json
+    {
+        "preferences": { // Optional: will be deep-merged with existing preferences
+            "eventTypeToUpdate": { "enabled": boolean, "channels": ["email", "sms", "push"] }
+        },
+        "dndWindows": [ // Optional: will replace the entire dndWindows array if present
+            { "dayOfWeek": "string" | ["string"], "startTime": "HH:MM", "endTime": "HH:MM", "isFullDay": boolean }
+        ]
+    }
+    ```
+  - **Responses:**
+    - `200 OK`: Returns the updated preferences.
+    - `400 Bad Request`: If the request payload is invalid.
+    - `404 Not Found`: If preferences for the `userId` do not exist.
+    - `500 Internal Server Error`: For server-side errors.
 
 ## Setup and Installation
 
 This project leverages Docker and Docker Compose for a streamlined local development environment, especially for running DynamoDB Local and the Node.js application in containers.
 
 1.  **Clone the repository:**
+
     ```bash
     git clone [https://github.com/DawidWit/Notification_Orchestrator_Dawid_Witczak.git](https://github.com/DawidWit/Notification_Orchestrator_Dawid_Witczak.git)
     cd Notification_Orchestrator_Dawid_Witczak
     ```
 
 2.  **Install Node.js dependencies:**
+
     ```bash
     npm install
     ```
@@ -189,27 +205,29 @@ This project leverages Docker and Docker Compose for a streamlined local develop
 
 4.  **Create DynamoDB Local Data Directory:**
     A local directory is needed to persist DynamoDB Local data across container restarts.
+
     ```bash
     mkdir dynamodb_data
     ```
 
 5.  **Configure AWS CLI (for local table creation):**
     The AWS Command Line Interface (CLI) is used to create the DynamoDB table. Even for DynamoDB Local, it requires dummy AWS credentials.
-    * Configure dummy credentials by running `aws configure` and providing any placeholder values for `AWS Access Key ID`, `AWS Secret Access Key`, and a `Default region name` (e.g., `us-east-1`).
+    - Configure dummy credentials by running `aws configure` and providing any placeholder values for `AWS Access Key ID`, `AWS Secret Access Key`, and a `Default region name` (e.g., `us-east-1`).
 
 ## Running the Application
 
-This section guides you through starting your Dockerized application environment.
-
 1.  **Start the Dockerized Environment:**
     From your project's root directory, execute the following command to build your Node.js application's Docker image and start both the application and the DynamoDB Local services:
+
     ```bash
     docker-compose up --build
     ```
+
     This command will build your Node.js application's Docker image and start both the application and the DynamoDB Local services. The `app` service will be accessible on `http://localhost:3000` and `dynamodb-local` on `http://localhost:8000`.
 
 2.  **Create the DynamoDB Table:**
     Once the `dynamodb-local` service is running (which can take a few moments after `docker-compose up`), you need to create the `NotificationPreferences` table. Open a **new terminal window** and run the following AWS CLI command:
+
     ```bash
     aws dynamodb create-table \
         --table-name NotificationPreferences \
@@ -218,14 +236,17 @@ This section guides you through starting your Dockerized application environment
         --billing-mode PAY_PER_REQUEST \
         --endpoint-url http://localhost:8000
     ```
+
     **Note for PowerShell users:** If you're using PowerShell, replace `\` (backslash) with `` ` `` (backtick) for line continuation, or simply run the entire command on a single line.
 
 3.  **Restart Application Service (if necessary):**
     After creating the table, it's a good practice to restart your application service to ensure it connects to the newly available table.
     If `docker-compose up` is still running in your first terminal, run this in the new terminal:
+
     ```bash
     docker-compose restart app
     ```
+
     If you stopped the Docker Compose services after Step 1, you can simply run `docker-compose up --build` again.
 
 4.  **Access and Test the Application:**
@@ -245,9 +266,11 @@ Integration tests are provided to verify the API endpoints.
 ```bash
 npm test
 ```
+
 Ensure DynamoDB Local is running before executing tests, as they interact directly with the database. The beforeEach hook in the tests will seed the database with initial data for consistent testing.
 
 ## Assumptions
+
 Event Schema Stability: The structure of the incoming event payload (eventId, userId, eventType, timestamp, payload) is assumed to be consistent.
 
 Date/Time Format: All timestamps in events and DND window times (HH:MM) are assumed to be valid and consistently formatted. All date and time calculations for DND windows are performed using UTC (Coordinated Universal Time) to maintain consistency with the event timestamps.
@@ -256,8 +279,6 @@ Channel Names: Supported notification channels are strictly limited to email, sm
 
 DynamoDB Local: For local development and testing, DynamoDB Local is expected to be running on http://localhost:8000.
 
-Deep Merge Strategy: When updating nested preference objects, the deepmerge library is used. For arrays within these objects (e.g., notification channels), an overwriteMerge strategy is applied, meaning the entire existing array is replaced by the new array provided in the update payload.
-
 Error Handling: Basic error handling is implemented to catch exceptions and return 500 Internal Server Errors. More granular error types and custom error responses could be added.
 
 Scalability: The DynamoDB design with userId as the partition key is optimized for single-user access patterns (get, set, update preferences). For queries involving multiple users or global preferences, secondary indexes would be required (not implemented as per requirements).
@@ -265,6 +286,7 @@ Scalability: The DynamoDB design with userId as the partition key is optimized f
 No Actual Notifications: As per the task, no actual notification sending mechanisms are implemented. The service only decides if a notification should be processed.
 
 ## Technologies Used
+
 Node.js: v22.15.1.
 
 Express: Web framework for building the API.
